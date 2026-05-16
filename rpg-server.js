@@ -20,6 +20,24 @@ const supabase = createClient(
 //  GAME DATA – Classes, Skills, Enemies, Loot
 // ══════════════════════════════════════════════════════════════════
 
+// ── Verify Supabase JWT token ─────────────────────────────────
+async function verifyToken(token) {
+  try {
+    const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+      headers: {
+        'apikey':        process.env.SUPABASE_KEY,
+        'Authorization': 'Bearer ' + token
+      }
+    });
+    const user = await r.json();
+    if (user.id) return { id: user.id, name: user.user_metadata?.name || 'Held' };
+    return null;
+  } catch(e) {
+    console.error("[AUTH] Token verify error:", e.message);
+    return null;
+  }
+}
+
 const CLASSES = {
   warrior: {
     name: "Krieger", icon: "⚔️",
@@ -334,18 +352,35 @@ wss.on("connection", ws => {
 
       // ── Auth / Character ───────────────────────────────────────
       case "login": {
-        // Load or create player
+        // Verify Supabase JWT
+        if (!msg.token) {
+          ws.send(JSON.stringify({ type:"error", msg:"Kein Auth-Token – bitte einloggen" }));
+          break;
+        }
+
+        const authUser = await verifyToken(msg.token);
+        if (!authUser) {
+          ws.send(JSON.stringify({ type:"error", msg:"Ungültiger Token – bitte neu einloggen" }));
+          ws.close();
+          break;
+        }
+
+        const userId = authUser.id;
+        const userName = msg.name || authUser.name || "Held";
+        client.playerId = userId;
+
+        // Load or create player profile
         let player = null;
         try {
           const { data } = await supabase.from("rpg_players")
-            .select("*").eq("id", msg.playerId).single();
+            .select("*").eq("id", userId).single();
           player = data;
         } catch(e) { player = null; }
 
         if (!player) {
           try {
             const { data: newPlayer } = await supabase.from("rpg_players")
-              .insert({ id: msg.playerId, name: msg.name || "Abenteurer", gold: 100, created_at: new Date().toISOString() })
+              .insert({ id: userId, name: userName, gold: 100, created_at: new Date().toISOString() })
               .select().single();
             player = newPlayer;
           } catch(e) {
@@ -357,12 +392,16 @@ wss.on("connection", ws => {
         let chars = [];
         try {
           const { data } = await supabase.from("rpg_characters")
-            .select("*").eq("player_id", msg.playerId);
+            .select("*").eq("player_id", userId);
           chars = data || [];
         } catch(e) { chars = []; }
 
-        client.playerId = msg.playerId;
-        ws.send(JSON.stringify({ type:"login_ok", player: player||{id:msg.playerId,name:msg.name,gold:100}, characters: chars }));
+        console.log(`[LOGIN] ${userName} (${userId.slice(0,8)}...) eingeloggt`);
+        ws.send(JSON.stringify({
+          type:"login_ok",
+          player: player || { id:userId, name:userName, gold:100 },
+          characters: chars
+        }));
         break;
       }
 
