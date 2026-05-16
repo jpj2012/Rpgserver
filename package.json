@@ -1,0 +1,15 @@
+{
+  "name": "rpg-dungeon-server",
+  "version": "1.0.0",
+  "description": "Adaptive Dungeon Crawler RPG Server",
+  "main": "rpg-server.js",
+  "scripts": {
+    "start": "node rpg-server.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "ws": "^8.18.0"
+  }
+}
