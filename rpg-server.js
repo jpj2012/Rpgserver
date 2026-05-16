@@ -663,8 +663,6 @@ wss.on("connection", ws => {
 
       case "ping": ws.send(JSON.stringify({type:"pong",t:msg.t})); break;
     }
-  });
-
     } catch(err) {
       console.error("[WS ERROR] Unhandled:", err.message, err.stack);
       try { ws.send(JSON.stringify({type:"error", msg:"Server-Fehler: " + err.message})); } catch(_) {}
